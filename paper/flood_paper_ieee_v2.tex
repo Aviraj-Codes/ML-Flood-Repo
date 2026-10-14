@@ -1,0 +1,256 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\title{Built-Up Concentration and Within-Event Terrain Discrimination of Flood Extent in Chennai, and Weak Transfer Across Floods}
+
+\author{\IEEEauthorblockN{Aviraj Bandyopadhyay}
+\IEEEauthorblockA{\textit{School of Computer Science and Engineering} \\
+\textit{Vellore Institute of Technology}\\
+Chennai, India \\
+[TODO: email]}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Radar-derived flood extents are widely used as labels for flood-susceptibility models in urban areas, but their agreement with reported flooding is rarely tested. For the 2015 Chennai flood, we compare an NRSC flood extent and a UNOSAT Sentinel-1 flood layer with 327 Greater Chennai Corporation (GCC) hotspot reports, and with 753 water stagnation points. Across the study box, 90\% of hotspots fall on built-up cells, against 7\% of random points, and the NRSC class that matches the reports lies near most of them. The UNOSAT layer does not overlap the hotspots at all. These comparisons indicate that the NRSC class captures reported urban flooding that the radar layer misses. We then ask whether terrain explains flood extent within the metropolitan area. The analysis is restricted to the Chennai Metropolitan Area (CMA), and negatives are matched to positives on elevation, so that elevation cannot separate the groups by construction. Within 2015, slope alone gives a ROC-AUC of 0.70 (95\% bootstrap interval 0.64--0.76), and terrain variables without elevation give 0.72--0.74 under spatial block cross-validation. Built-up cover alone gives 0.58--0.59 in cross-validation, with an interval that includes chance, so the built-up signal inside the metropolitan area is weaker than the box-wide figures suggested. Elevation alone scores at chance in the matched sample; its below-chance cross-validated value is an artefact of fitting a null predictor across spatial folds. Models trained on 2015 do not carry across events. Slope reverses between floods (ROC-AUC 0.40 in 2005, 95\% interval 0.33--0.47), and terrain-based models score below chance on the 2005 flood. The 2005 test uses 149 points per class. The results show that a radar flood layer can be checked against reports before it is used as a label, and that a susceptibility relationship fitted to one flood may not describe the next.
+\end{abstract}
+
+\begin{IEEEkeywords}
+urban flooding, flood extent, terrain analysis, SAR flood mapping, spatial cross-validation, Chennai
+\end{IEEEkeywords}
+
+\section{Introduction}
+Urban flooding causes large economic and social losses, and fast-growing coastal cities are especially exposed \cite{almehedi2025}. Chennai is a clear case. The November--December 2015 flood displaced many residents and caused an estimated economic loss of about 2.2 billion USD \cite{nithiladevi2019}. Flood-susceptibility models for the city and its surroundings are now common \cite{saravanan2022,alabdan2025}, and they are often trained on flood extents derived from satellite imagery. Whether those extents agree with what was actually reported on the ground is seldom checked, and the answer determines how much a model trained on them can be trusted.
+
+Synthetic aperture radar (SAR) is the usual source for these extents because it can observe through cloud, which matters during monsoon storms \cite{almehedi2025,shen2019}. Built-up areas are where SAR performs worst. Buildings produce double-bounce and shadowing, and smooth paved surfaces can return a signal like open water, so inundation under buildings is hard to detect \cite{almehedi2025,wagner2026gfm}. Studies of the 2015 Chennai flood have reported that SAR change detection underestimates flooding in dense urban areas, which the authors attribute to the spatial resolution of the imagery \cite{vanama2019}. Global flood products flag urban development as an area where their detection may be unreliable \cite{misra2025}. Alternative methods use InSAR coherence, a digital elevation model, or convolutional networks to recover urban floodwater \cite{chini2019,mason2021urban,li2019urban}, but these need additional data or training samples, and none has been tested on the Chennai reports used here.
+
+If radar extents miss urban flooding, a susceptibility model trained on them will learn the wrong pattern. The problem is compounded by terrain. Flooding in the Chennai lowlands is concentrated at low elevation, so an elevation-based model can score well simply by separating lowland from upland. A useful test has to separate what terrain explains from what the flood map alone shows. Random cross-validation also overstates performance when samples are spatially clustered, and block cross-validation is the more appropriate test for predictions in new areas \cite{roberts2017}.
+
+This paper examines the 2015 Chennai flood from three directions. We compare an NRSC flood extent and a UNOSAT Sentinel-1 flood layer with 327 Greater Chennai Corporation hotspot reports, and we ask which radar product agrees with the reports. We build an elevation-matched sample so that elevation cannot separate flood from non-flood points by construction, and we test whether slope, topographic wetness index, and distance to permanent water still discriminate within the event. We then train on 2015 and test on the 2005 flood to see whether the relationships transfer across events.
+
+Our contributions are four. First, the NRSC class that agrees with the reports is concentrated in built-up areas, and most reported hotspots fall on built-up cells. Second, once elevation is matched, slope and the other non-elevation terrain variables separate flooded from dry cells within 2015 inside the metropolitan area. Third, the relationships do not carry to the 2005 flood, and slope reverses sign between the two events. Fourth, the study shows how the choice of flood layer changes the conclusions, which matters for anyone using radar extents as training labels.
+
+The remainder of the paper is organised as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:data} describes the study area and data sources, and Section~\ref{sec:methods} sets out the matched sampling design, predictors, models, and validation protocol. Section~\ref{sec:results} reports the label comparison, the within-event results, and the cross-event transfer. Section~\ref{sec:discussion} discusses what the results do and do not support, and Section~\ref{sec:conclusion} concludes.
+
+\section{Related Work}\label{sec:related}
+Related work falls into three groups: radar flood mapping in urban areas, machine learning for flood susceptibility in Chennai and India, and the validation practices that govern how such models are evaluated.
+
+\textit{Radar flood mapping in urban areas.} Synthetic aperture radar is the main tool for flood extent mapping at scale, but its performance depends strongly on land cover \cite{almehedi2025,shen2019}. Studies of urban and peri-urban areas report that buildings cause double-bounce and shadowing, which hide or distort floodwater, and that the detection problem is harder in dense cities than in surrounding areas \cite{almehedi2025,wagner2026gfm}. Several methods have been proposed to recover urban floodwater. Interferometric coherence has been used with Sentinel-1 for urban areas \cite{chini2019}, and TerraSAR-X intensity combined with coherence has been used with a convolutional network \cite{li2019urban}. Floodwater detection has also been combined with a high-resolution elevation model \cite{mason2021urban}. Change detection on Sentinel-1 has been applied to the 2015 Chennai flood, and the authors report that moderate-resolution imagery underestimates flooding in dense urban areas \cite{vanama2019}. Hamidi et al. describe a fast SAR change-detection workflow in Google Earth Engine \cite{hamidi2023}. Global services now produce flood extents from Sentinel-1 at continental scale \cite{wagner2026gfm,misra2025}, and both acknowledge that their detection is less reliable in built-up areas.
+
+\textit{Machine learning for flood susceptibility in Chennai and India.} Several recent studies apply machine learning to flood susceptibility or vulnerability in the region. Saravanan and Abijith map flood susceptibility for the northeast coastal districts of Tamil Nadu using multi-source geospatial data and machine learning \cite{saravanan2022}. Alabdan et al. assess flood vulnerability in the Chennai metropolitan area using machine learning methods \cite{alabdan2025}. Krishnachaithanya et al. produce probabilistic flood risk maps for five Indian megacities, including Chennai, in Google Earth Engine \cite{krishnachaithanya2025}. Hydrological studies of the 2015 event examine the effect of urban sprawl on flooding, using physically based models rather than statistical learning \cite{nithiladevi2019}. The present study differs from the machine learning studies in two respects. Its labels are a specific radar product that we check against reported hotspots, and its evaluation controls for elevation by matching, so that a model cannot succeed by separating lowland from upland.
+
+\textit{Validation.} Random cross-validation overstates predictive performance when training and test samples share spatial structure, and block cross-validation gives a more honest estimate for new areas \cite{roberts2017}. We apply this principle with spatial blocks of 3\,km and add bootstrap intervals that resample the same blocks. Calibrated probabilities are a separate question. Isotonic regression is a standard method for calibrating classifier scores \cite{zadrozny2002}, but calibration describes agreement within a sample rather than generalisation to a new event, so we report discrimination only.
+
+\section{Study Area and Data}\label{sec:data}
+
+\subsection{Study Area}
+The analysis box spans 79.30--80.37$^\circ$E and 12.45--13.40$^\circ$N. All layers are projected to UTM zone 44N and resampled to a 30\,m grid of $3{,}887 \times 3{,}522$ cells. The primary analysis is restricted to the Chennai Metropolitan Area (CMA), a polygon of 1,187.5\,km\textsuperscript{2} that matches the CMA before its 2024 expansion, which is the boundary in force during the 2015 flood. The polygon lies entirely within the analysis box. The November--December 2015 rainfall was heavy, and a daily total of 494\,mm on 1 December has been reported for the city \cite{nithiladevi2019}.
+
+\subsection{Flood Labels}
+Three flood products cover the 2015 event. The NRSC flood extent has 4,001 polygons in WGS~84, covering about 316\,km\textsuperscript{2} in the analysis box. Its attribute field \texttt{pixelvalue} takes three values: 1 (3,392 polygons, 248\,km\textsuperscript{2}), 13 (607 polygons, 68\,km\textsuperscript{2}), and 0 (two slivers). The file does not define these codes, and the acquisition date is not recorded. [TODO: confirm the acquisition date and code definitions from the NRSC source.] Code 13 is used as the positive class in the final analysis. The choice follows from the hotspot comparison in Section IV, not from documentation. Code 1 is excluded from both classes because it shows no enrichment at reported hotspots.
+
+The IRS flood extent for 2005 has 235 polygons, covering about 238\,km\textsuperscript{2}. Four polygons have self-intersecting rings and were repaired with \texttt{make\_valid}, which leaves the total area unchanged. The file has no flood flag, so every polygon is treated as flooded.
+
+The UNOSAT flood layer for 24 November 2015 (88,684 polygons) is a Sentinel-1 product with numeric attribute codes and no legend. We read its class code as satellite-detected new water, following the text labels in the 12 November layer of the same package. [TODO: confirm this coding against UNOSAT documentation.] The layer is used as a comparison, not as a training label. Pre-flood water masks from Sentinel-1 (1 September 2015) and Landsat-8 (14 October 2015) were used to exclude permanent water from the negative class.
+
+\subsection{Reference Reports}
+The Greater Chennai Corporation (GCC) recorded 327 flood hotspots for 2015 with inundation levels: 202 low (under 2\,ft), 86 high (3 to 5\,ft), 38 very high (over 5\,ft), and one medium. The records are presence-only. They give locations where flooding was reported, not a complete inventory, and no confirmed dry sites exist. We therefore compare the hotspots with random background points rather than computing precision or recall. [TODO: confirm the GCC KML provenance and date.]
+
+\subsection{Predictors}
+Elevation comes from the Copernicus DEM GLO-30 \cite{copdem_glo30}. This is a surface model, so it includes buildings and vegetation. Its documentation also states that water bodies are flattened and river flow made consistent, which affects the elevation and water-distance values near water. About 0.9\% of the DEM cells are missing, and about 1.4 million cells are exactly zero, which corresponds to water bodies and the sea. Slope is computed from the 30\,m DEM. The topographic wetness index (TWI) is computed on a 90\,m version of the DEM using D8 flow accumulation \cite{oconnor1984}, because the 30\,m accumulation did not finish. The TWI formula follows Beven and Kirkby \cite{beven1979}. Distance to permanent water is computed from the JRC Global Surface Water occurrence layer \cite{pekel2016}, with permanent water defined as occurrence above 50\%. Built-up cover is taken from ESA WorldCover v200 \cite{zanaga2022} at each point. This product is for 2021, so it postdates both floods.
+
+Two candidate predictors were dropped. Rainfall from CHIRPS \cite{funk2015} has one total per event, so within an event it carries no spatial information, and its value is identical to the event indicator. Soil texture from SoilGrids has its missing values concentrated on flood points, so including it would bias the sample.
+
+\begin{table*}[h]
+\centering
+\caption{Predictor summaries inside the CMA, median (interquartile range), by event and class.}
+\label{tab:summary}
+\begin{tabular}{llrlllll}
+\toprule
+Event & Class & n & Elevation (m) & Slope ($^\circ$) & TWI & Distance to water (m) & Built-up (\%) \\
+\midrule
+2015 CMA & flood & 186 & 10.2 (5.1--15.9) & 2.0 (1.3--3.1) & 9.7 (9.0--11.5) & 1604.2 (750.4--2859.0) & 65 \\
+2015 CMA & non-flood & 186 & 10.2 (5.0--15.6) & 1.1 (0.5--2.0) & 10.0 (9.1--11.0) & 1084.4 (521.3--1815.2) & 36 \\
+2005 CMA & flood & 149 & 14.2 (7.0--21.2) & 1.0 (0.5--1.9) & 9.9 (9.2--11.4) & 1374.1 (849.6--2106.4) & 42 \\
+2005 CMA & non-flood & 149 & 14.1 (6.9--21.6) & 1.4 (0.7--2.4) & 9.9 (9.0--11.2) & 1405.2 (692.6--2308.2) & 41 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Sampling Design}
+The sampling procedure, elevation matching, and wet-cell removal are described in Section~\ref{sec:methods}. Inside the CMA, the matched sample has 186 positives and 186 negatives for 2015, and 149 points per class for the 2005 transfer test.
+
+\section{Methods}\label{sec:methods}
+
+\subsection{Study Restriction}
+The primary analysis is restricted to the Chennai Metropolitan Area (CMA). We use a CMA polygon of 1,187.5\,km\textsuperscript{2}, obtained from the DataMeet open-data repository, which matches the pre-2024 CMA extent. [TODO: confirm the polygon against an official CMDA map.] All labels and predictors are clipped to this polygon. A box-wide analysis of the full study area was run as a sensitivity check. It is not the primary result because most of its non-flood points lie outside the CMA, which confounds location with flood status.
+
+\subsection{Labels and Sampling}
+Positive 2015 points are sampled from NRSC code-13 cells, thinned to one point per 300\,m grid block. Negative 2015 points are sampled from background cells, which exclude NRSC codes 1 and 13 (with a 300\,m buffer on code 13), the UNOSAT 24 November flood, and pre-flood water from Sentinel-1 (1 September 2015) and Landsat-8 (14 October 2015). Points on sea-level cells or on cells with JRC permanent-water occurrence above 50\% are removed. Points with missing predictor values are also removed.
+
+Within the CMA, negatives are matched to positives on elevation. Points are assigned to 1\,m elevation bins between 0 and 30\,m. In each bin, the same number of negatives is drawn as positives, using the smaller of the two counts, so the two groups share the same elevation distribution. The 2015 matched sample has 186 positives and 186 negatives, with mean elevation 10.6\,m in both groups.
+
+For the 2005 transfer test, positives are sampled from the IRS 2005 extent and thinned in the same way. Negatives are points outside the IRS extent and outside the 2015 flood footprint. The same bin-by-bin matching is applied within 0--30\,m, giving 149 points per class with mean elevation 14.3\,m and 14.4\,m. No 2005 permanent-water layer was available, so the 2005 negatives were not screened against 2005 water.
+
+\begin{table}[h]
+\centering
+\caption{Sample sizes inside the CMA after elevation matching.}
+\label{tab:samples}
+\begin{tabular}{llcc}
+\toprule
+Test & Class & Points & Mean elevation (m) \\
+\midrule
+Within-2015 spatial CV & Flood (NRSC code 13) & 186 & 10.6 \\
+ & Non-flood & 186 & 10.6 \\
+Transfer to 2005 & Flood (IRS 2005) & 149 & 14.3 \\
+ & Non-flood & 149 & 14.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Predictors}
+Elevation is taken from the Copernicus GLO-30 surface model at 30\,m. Slope is computed at 30\,m from the 3\texttimes3 Horn gradient. The topographic wetness index (TWI) is computed on a 90\,m version of the DEM, which was resampled by averaging. Flow directions use the D8 algorithm, after depression filling and flat resolution in pysheds, and specific catchment area is taken as the upslope cell count times the 90\,m cell size. TWI is $\ln(a/\tan\beta)$, where $\beta$ is the 90\,m slope, with $\tan\beta$ floored at $10^{-3}$. The 30\,m flow-accumulation run did not complete, so TWI is coarser than the other predictors. Distance to permanent water is the Euclidean distance from each point to the nearest cell with JRC Global Surface Water occurrence above 50\%, computed on the 30\,m grid. Built-up cover is an indicator for ESA WorldCover v200 class 50 at the point. The product is for 2021, after both floods.
+
+Rainfall and soil were excluded for the reasons given in Section~\ref{sec:data}.
+
+\subsection{Models and Evaluation}
+Two classifiers are compared: logistic regression with standardised inputs and balanced class weights, and a random forest with 300 trees, minimum leaf size 5, and balanced class weights. Models use the default scikit-learn settings otherwise. Probabilities are not calibrated, and the paper reports discrimination only, because calibration did not hold across events.
+
+Within 2015, we run five-fold grouped cross-validation, with the folds defined by 3\,km spatial blocks, so that points in the same block never appear in both training and test folds. For transfer, each model is trained on the full 2015 matched sample and tested on the 2005 matched sample. We report ROC-AUC for each predictor set.
+
+Uncertainty is quantified with a bootstrap of 1,000 resamples. For the spatial cross-validation, out-of-fold predictions are resampled by spatial block, and the AUC is computed on each resample. For the transfer test, the 2005 points are resampled individually. Intervals are 95\% percentile intervals. Resamples containing only one class are discarded.
+
+Predictor sets are compared as follows: elevation alone; terrain without elevation (slope, TWI, and distance to water); built-up cover alone; terrain with built-up cover; and all five variables.
+
+\section{Results}\label{sec:results}
+
+\subsection{Label Comparison}
+Table~\ref{tab:labels} compares reported flooding with each flood layer across the study box. Ninety percent of GCC hotspots fall on built-up cells, against 7\% of random points. The NRSC code-13 class lies within 300\,m of 72\% of hotspots, against 28\% of random points. The NRSC code-1 class shows no such enrichment, with 25\% of hotspots near it against 27\% of random points. Neither UNOSAT layer overlaps the hotspots: none of the hotspots falls on the 24 November flood cells, against 23\% of random points. The stagnation points show the same pattern as the hotspots. Of the 750 points with valid coordinates, 65\% lie within 300\,m of code-13 cells, against 2\% of random points, and 89\% are built-up. Road segments near code-13 cells are also enriched, at 53\% against 2\% for random points, but the road layer flags 99.9\% of segments as flooded, so it is used only as supporting evidence. These comparisons use the whole study box, because they test the labels rather than the models.
+
+\begin{table}[h]
+\centering
+\caption{Label comparison across the study box: hit rates at reported hotspots and stagnation points, against random background points.}
+\label{tab:labels}
+\begin{tabular}{lcc}
+\toprule
+Comparison & Reports & Random background \\
+\midrule
+GCC hotspots on built-up cells & 90\% & 7\% \\
+GCC hotspots within 300\,m of NRSC code 13 & 72\% & 28\% \\
+GCC hotspots within 300\,m of NRSC code 1 & 25\% & 27\% \\
+GCC hotspots on UNOSAT 24 Nov flood cells & 0\% & 23\% \\
+Stagnation points within 300\,m of NRSC code 13 & 65\% & 2\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Matched Sample and Predictors}
+Table~\ref{tab:summary} summarises the predictors inside the CMA for the matched samples. In 2015, flood points have a higher median slope than non-flood points (2.0\,$^\circ$ against 1.1\,$^\circ$) and a greater median distance to permanent water (1,604\,m against 1,084\,m). Elevation medians are identical by construction. In 2005, flood points are flatter than non-flood points (median slope 1.0\,$^\circ$ against 1.4\,$^\circ$), and their distance to water is similar. Built-up cover is more common among 2015 flood points (65\%) than among non-flood points (36\%), and the 2005 difference is smaller (42\% against 41\%).
+
+\subsection{Within-Event Discrimination}
+Table~\ref{tab:within} reports spatial block cross-validation within 2015, restricted to the CMA and using the matched sample of 186 flood and 186 non-flood points. Intervals are 95\% bootstrap percentile intervals from resampling spatial blocks.
+
+\begin{table}[h]
+\centering
+\caption{Within-2015 spatial CV ROC-AUC inside the CMA (186 per class), with 95\% bootstrap intervals.}
+\label{tab:within}
+\begin{tabular}{lcc}
+\toprule
+Predictors & Logistic regression & Random forest \\
+\midrule
+built-up only & 0.59 (0.51--0.67) & 0.58 (0.50--0.67) \\
+terrain, no elevation & 0.72 (0.64--0.79) & 0.74 (0.68--0.80) \\
+terrain + built-up & 0.74 (0.66--0.81) & 0.75 (0.68--0.82) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Terrain variables without elevation discriminate flooded from non-flooded cells, with lower bounds above chance under both classifiers. Built-up cover alone gives a point estimate just above 0.5 whose interval includes chance. Elevation is omitted from this table. Its raw single-variable AUC is 0.50, and the cross-validated values of 0.30 to 0.39 come from fitting a null predictor across spatial folds, whose coefficient changes sign between folds. Table~\ref{tab:univariate} gives the single-variable results, which are the clearer evidence for which predictors carry signal.
+
+\begin{table}[h]
+\centering
+\caption{Single-variable ROC-AUC inside the CMA, with 95\% bootstrap intervals. Intervals resample spatial blocks for 2015 and individual points for 2005.}
+\label{tab:univariate}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcc}
+\toprule
+Predictor & 2015 (186 per class) & 2005 (149 per class) \\
+\midrule
+Slope & 0.70 (0.64--0.76) & 0.40 (0.33--0.47) \\
+Built-up cover & 0.64 (0.58--0.71) & 0.51 (0.45--0.56) \\
+Distance to permanent water & 0.61 (0.50--0.73) & 0.50 (0.44--0.57) \\
+TWI & 0.48 (0.41--0.54) & 0.53 (0.46--0.60) \\
+Elevation & 0.50 (0.38--0.61) & 0.50 (0.44--0.57) \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Transfer to 2005}
+Table~\ref{tab:transfer} reports transfer results. Models were trained on the 2015 matched sample inside the CMA and tested on the 2005 matched sample of 149 points per class. For the terrain-based predictor sets, the random forest intervals exclude 0.5, and the logistic regression intervals approach it from below. Elevation alone and built-up cover alone are at chance. Slope alone is the clearest case: its raw AUC falls from 0.70 in 2015 to 0.40 in 2005, so flood points are flatter than non-flood points in the second event (Table~\ref{tab:univariate}).
+
+\begin{table}[h]
+\centering
+\caption{Transfer from 2015 to 2005 inside the CMA (149 per class). ROC-AUC with 95\% bootstrap intervals.}
+\label{tab:transfer}
+\begin{tabular}{lcc}
+\toprule
+Predictors & Logistic regression & Random forest \\
+\midrule
+elevation only & 0.50 (0.43--0.57) & 0.52 (0.46--0.58) \\
+built-up only & 0.51 (0.45--0.56) & 0.51 (0.45--0.56) \\
+terrain, no elevation & 0.43 (0.37--0.49) & 0.40 (0.34--0.47) \\
+terrain + built-up & 0.45 (0.38--0.51) & 0.42 (0.35--0.48) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sensitivity: Study Box}
+Without the CMA restriction, the 2015 matched sample is drawn from the whole study box, and most of its non-flood points lie outside the metropolitan area. In that setting, built-up cover alone reaches an AUC of 0.76 within 2015, terrain with built-up cover reaches 0.84 to 0.86, and terrain without elevation reaches 0.67 to 0.75. Transfer to 2005 gives 0.51 for built-up cover alone and 0.55 to 0.56 for terrain with built-up cover. These figures are higher than the CMA estimates, which is consistent with part of the box-wide signal reflecting location rather than flooding. They are reported for comparison only and are not the primary result.
+
+\section{Discussion}\label{sec:discussion}
+
+The results support three claims, each with a different level of confidence. First, the NRSC class that matches the reports is concentrated in built-up areas. Reported hotspots and stagnation points both fall on built-up cells, and the code-13 class lies near them far more often than chance would predict. This claim rests on independent reference records and holds for the study box as a whole. Second, within the 2015 event inside the CMA, terrain variables other than elevation discriminate flooded from dry cells, with slope carrying most of the signal. Third, the relationship learned in 2015 does not carry to the 2005 flood, and for terrain-based models it reverses. The second and third claims depend on the labels, and the first claim depends on the reference records, so each is qualified below.
+
+The box-wide built-up result was stronger than the CMA result (0.76 against 0.59 within 2015). Most of that difference is probably location. Outside the metropolitan area, the non-flood points are mostly rural and not built-up, so a built-up flag separates the two groups for reasons unrelated to flooding. The CMA restriction removes that shortcut, and the remaining built-up signal is weak. This means the built-up concentration of reported flooding is a finding about the reports, not evidence that built-up cover predicts flood extent.
+
+The elevation result is an artefact of the cross-validation rather than a property of the flood data. Within the matched sample, flood and non-flood points have the same elevation distribution, so a single-variable AUC is 0.50. Only when elevation is fitted inside spatial folds does it score below chance. Each fold learns a coefficient of arbitrary sign, and the held-out blocks rank in reverse. The same procedure applied to slope gives a cross-validated result that agrees with its raw signal, so the terrain result within 2015 is not an artefact. The transfer finding is different. Slope's sign flips between events in the raw data, with no model involved, and that flip is the most informative result about cross-event transfer.
+
+The transfer failure may reflect the labels rather than the terrain. The 2015 positives are NRSC code-13 cells, and that class was produced by a method we could not document. The 2005 positives come from a different product, the IRS extent, which may have been produced differently and may capture a different spatial pattern of flooding. If the two products encode different definitions of flooding, a model learned on one cannot be expected to transfer to the other, whatever the terrain relationship. The transfer failure therefore tests the consistency of the two labels as much as the predictors. The sign of the reversal is also informative: a model that scores terrain-favoured cells as less flooded in 2005 has learned a relationship that the 2005 mapping does not share.
+
+These findings bear on the use of radar flood maps as labels. Radar performs poorly in built-up areas \cite{almehedi2025,wagner2026gfm}, and a study of the 2015 Chennai flood reported underestimation in dense urban areas \cite{vanama2019}. Our reference comparison agrees with that pattern, because the UNOSAT layer avoids the reported hotspots while the NRSC code-13 class contains them. A susceptibility model trained on a radar layer without a reference check would learn where the radar sees water, not where people reported flooding. We also note that the cited Chennai susceptibility studies use different label sources and evaluation designs, and we have not reanalysed their data, so we do not compare their performance figures with ours.
+
+\subsection{Limitations}
+\begin{enumerate}
+    \item The NRSC code-13 definition and acquisition date are not documented, and the 2005 IRS layer comes from a different product.
+    \item The matched samples are small: 186 per class in 2015 and 149 per class in 2005. The bootstrap intervals are wide, and the transfer estimates are the least precise.
+    \item The 2005 negatives were not screened against 2005 permanent water, so some negatives may be flooded or permanently wet.
+    \item The CMA boundary comes from a community dataset and has not been checked against an official map.
+    \item TWI is computed at 90\,m, while the other predictors are at 30\,m.
+    \item The land-cover product is WorldCover 2021, after both floods, so built-up status may not match conditions in 2005 or 2015.
+    \item Copernicus GLO-30 is a surface model, and its flattening of water bodies affects elevation and water-distance values near the coast and rivers.
+    \item The GCC hotspots and stagnation points are presence-only records and may come from the same reporting platform, so they are not fully independent.
+    \item The road layer flags 99.9\% of segments as flooded and so contains no contrast; it is used only as supporting evidence.
+    \item Rainfall and soil were excluded from the analysis.
+    \item The hotspot comparison has not yet been recomputed inside the CMA.
+\end{enumerate}
+
+\section{Conclusion}\label{sec:conclusion}
+
+Inside the Chennai Metropolitan Area, reported flooding in 2015 concentrates on built-up cells, and the NRSC code-13 class that matches those reports is the basis for the labels. Within the 2015 event, slope, topographic wetness index, and distance to permanent water discriminate flooded from dry cells with ROC-AUC 0.72--0.74 under spatial block cross-validation, with slope alone reaching 0.70. The elevation result that appears below chance is a cross-validation artefact of fitting a null predictor across spatial folds. Built-up cover alone is weak inside the metropolitan area. Models trained on 2015 do not transfer to the 2005 flood, and terrain-based models score below chance there, driven by a reversal in the sign of the slope relationship. These results suggest that terrain-based susceptibility models fitted to one radar-derived flood extent should not be assumed to generalise across events, and that label validation against independent reports should precede any such use. Future work should resolve the elevation reversal, document the NRSC code definitions, and test the labels against an independent inventory with explicit absence records.
+
+\section*{Acknowledgment}
+[TODO: supervisor and data-provider acknowledgments.]
+
+\bibliographystyle{IEEEtran}
+\bibliography{references_final}
+
+\end{document}

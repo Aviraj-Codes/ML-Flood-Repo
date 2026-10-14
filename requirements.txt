@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+scikit-learn
+geopandas
+rasterio
+pyproj
+shapely
+pysheds
+xgboost
+shap
+pyarrow

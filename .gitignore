@@ -1,0 +1,8 @@
+*.tif
+*.parquet
+*.zip
+*.kml
+*.shp
+*.npy
+__pycache__/
+.ipynb_checkpoints/
