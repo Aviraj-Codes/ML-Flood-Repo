@@ -29,4 +29,4 @@ Random seeds are fixed in the scripts. Intervals are 95% bootstrap percentile in
 - The NRSC code definitions and acquisition date are undocumented. The label choice rests on the hotspot comparison.
 
 ## Licence
-Choose a licence before publishing (for example MIT for the code). Check the terms of each data source before redistributing any derived data.
+This project is licensed under the MIT License – see the LICENSE file for details.
