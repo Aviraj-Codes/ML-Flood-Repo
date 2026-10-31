@@ -1,4 +1,4 @@
-# Flood extent validation and terrain discrimination, Chennai 2015 and 2005
+# Flood extent validation and terrain discrimination, Chennai in 2015 and 2005
 
 Code and derived results for the paper on built-up concentration of flood extent and within-event terrain discrimination in the Chennai Metropolitan Area, with a failed transfer to the 2005 flood.
 
