@@ -24,7 +24,7 @@ Input data are not redistributed here. Obtain them from the original sources:
 Random seeds are fixed in the scripts. Intervals are 95% bootstrap percentile intervals with 1,000 resamples.
 
 ## Known limitations
-- Several scripts use hard-coded input paths (`/mnt/user-data/uploads/...`). Change these to your local paths before running.
+- Several scripts use hard-coded input paths (`/mnt/user-data/uploads/...`). Change these paths to your local paths before running.
 - The 90 m TWI step requires a numpy compatibility shim for pysheds (`np.in1d = np.isin`).
 - The NRSC code definitions and acquisition date are undocumented. The label choice rests on the hotspot comparison.
 
